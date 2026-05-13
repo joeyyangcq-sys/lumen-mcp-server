@@ -20,6 +20,7 @@ func New(log *logging.Logger, metrics *observability.Metrics, h handlers.Handler
 
 	return middleware.Chain(
 		mux,
+		middleware.CORS,
 		middleware.RequestID,
 		middleware.Recovery(log),
 		middleware.AccessLog(log),
