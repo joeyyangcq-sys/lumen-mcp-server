@@ -61,6 +61,10 @@ func (h Handler) InvokeTool(w http.ResponseWriter, r *http.Request) {
 	traceID, _ := r.Context().Value("trace_id").(string)
 	result, err := h.Invoker.InvokeTool(r.Context(), bearer, req.Tool, req.Args, traceID)
 	if err != nil {
+		if _, ok := err.(invoke.ErrUnauthorized); ok {
+			writeError(w, http.StatusUnauthorized, "unauthorized", err.Error(), map[string]any{"tool": req.Tool})
+			return
+		}
 		if _, ok := err.(invoke.ErrForbidden); ok {
 			writeError(w, http.StatusForbidden, "forbidden", err.Error(), map[string]any{"tool": req.Tool})
 			return

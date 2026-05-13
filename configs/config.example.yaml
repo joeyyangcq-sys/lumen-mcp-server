@@ -23,9 +23,27 @@ gateway:
 auth:
   tool_scope_map:
     list_routes: routes:read
+    get_route: routes:read
     put_route: routes:write
+    patch_route: routes:write
     delete_route: routes:write
+    list_services: services:read
+    put_service: services:write
+    list_upstreams: upstreams:read
+    put_upstream: upstreams:write
+    list_plugin_configs: plugins:read
+    put_plugin_config: plugins:write
+    list_global_rules: global_rules:read
+    put_global_rule: global_rules:write
+    preview_import: gateway:bundle:apply
+    apply_import: gateway:bundle:apply
+    export_bundle: routes:read
+    history_list: routes:read
+    get_schema: routes:read
+    list_plugins: plugins:read
+    get_stats: metrics:read
     history_rollback: admin:dangerous
 
 audit:
   backend: stdout
+  sqlite_path: ./data/mcp-audit.db

@@ -20,7 +20,7 @@ func (s Service) InvokeTool(ctx context.Context, bearer, toolName string, args m
 	claims, err := s.Verifier.VerifyBearer(ctx, bearer)
 	if err != nil {
 		_ = s.Audit.Append(ctx, audit.Event{At: time.Now().UTC(), Tool: toolName, Result: "deny", TraceID: traceID, Message: err.Error()})
-		return nil, err
+		return nil, ErrUnauthorized{Reason: err.Error()}
 	}
 	decision := s.Authorize.Check(claims.Scopes, toolName)
 	if !decision.Allowed {
@@ -41,5 +41,13 @@ type ErrForbidden struct {
 }
 
 func (e ErrForbidden) Error() string {
+	return e.Reason
+}
+
+type ErrUnauthorized struct {
+	Reason string
+}
+
+func (e ErrUnauthorized) Error() string {
 	return e.Reason
 }

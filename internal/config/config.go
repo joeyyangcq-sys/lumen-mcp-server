@@ -49,7 +49,8 @@ type AuthConfig struct {
 }
 
 type AuditConfig struct {
-	Backend string `yaml:"backend"`
+	Backend    string `yaml:"backend"`
+	SQLitePath string `yaml:"sqlite_path"`
 }
 
 func (c *Config) ApplyDefaults() {
@@ -73,6 +74,9 @@ func (c *Config) ApplyDefaults() {
 	}
 	if c.Audit.Backend == "" {
 		c.Audit.Backend = "stdout"
+	}
+	if c.Audit.SQLitePath == "" {
+		c.Audit.SQLitePath = "./data/mcp-audit.db"
 	}
 }
 
@@ -104,6 +108,9 @@ func (c Config) Validate() error {
 	case "stdout", "sqlite":
 	default:
 		return fmt.Errorf("unsupported audit.backend: %q", c.Audit.Backend)
+	}
+	if c.Audit.Backend == "sqlite" && strings.TrimSpace(c.Audit.SQLitePath) == "" {
+		return errors.New("audit.sqlite_path cannot be empty when audit.backend=sqlite")
 	}
 	return nil
 }

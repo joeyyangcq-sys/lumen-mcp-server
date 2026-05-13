@@ -26,6 +26,7 @@ type App struct {
 	Metrics    *observability.Metrics
 	HTTPServer *http.Server
 	MCPServer  mcp.Server
+	closeAudit func() error
 }
 
 type staticCatalog []tool.Definition
@@ -35,9 +36,12 @@ func (s staticCatalog) List(context.Context) ([]tool.Definition, error) { return
 func New(cfg config.Config) *App {
 	log := logging.New(cfg.Logging.Level, cfg.Logging.Format)
 	metrics := observability.New()
-	audit := auditstore.NewMemory()
+	audit, closeAudit, err := auditstore.NewAuditStore(cfg.Audit.Backend, cfg.Audit.SQLitePath)
+	if err != nil {
+		panic(err)
+	}
 	inv := invoke.Service{
-		Verifier: jwkscache.Verifier{
+		Verifier: &jwkscache.Verifier{
 			Issuer:   cfg.OAuth.Issuer,
 			Audience: cfg.OAuth.Audience,
 			JWKSURL:  cfg.OAuth.JWKSURL,
@@ -47,13 +51,36 @@ func New(cfg config.Config) *App {
 		Audit:     audit,
 	}
 
-	catalog := staticCatalog{{Name: "list_routes", Description: "List gateway routes", Scope: "routes:read"}, {Name: "put_route", Description: "Create/update route", Scope: "routes:write"}}
+	catalog := staticCatalog{
+		{Name: "list_routes", Description: "List gateway routes", Scope: "routes:read"},
+		{Name: "get_route", Description: "Get route", Scope: "routes:read"},
+		{Name: "put_route", Description: "Create/update route", Scope: "routes:write"},
+		{Name: "patch_route", Description: "Patch route", Scope: "routes:write"},
+		{Name: "delete_route", Description: "Delete route", Scope: "routes:write"},
+		{Name: "list_services", Description: "List gateway services", Scope: "services:read"},
+		{Name: "put_service", Description: "Create/update service", Scope: "services:write"},
+		{Name: "list_upstreams", Description: "List gateway upstreams", Scope: "upstreams:read"},
+		{Name: "put_upstream", Description: "Create/update upstream", Scope: "upstreams:write"},
+		{Name: "list_plugin_configs", Description: "List plugin configs", Scope: "plugins:read"},
+		{Name: "put_plugin_config", Description: "Create/update plugin config", Scope: "plugins:write"},
+		{Name: "list_global_rules", Description: "List global rules", Scope: "global_rules:read"},
+		{Name: "put_global_rule", Description: "Create/update global rule", Scope: "global_rules:write"},
+		{Name: "preview_import", Description: "Preview import bundle", Scope: "gateway:bundle:apply"},
+		{Name: "apply_import", Description: "Apply import bundle", Scope: "gateway:bundle:apply"},
+		{Name: "export_bundle", Description: "Export bundle", Scope: "routes:read"},
+		{Name: "history_list", Description: "List history", Scope: "routes:read"},
+		{Name: "history_rollback", Description: "Rollback history", Scope: "admin:dangerous"},
+		{Name: "get_schema", Description: "Get control schema", Scope: "routes:read"},
+		{Name: "list_plugins", Description: "List plugin catalog", Scope: "plugins:read"},
+		{Name: "get_stats", Description: "Get control stats", Scope: "metrics:read"},
+	}
 	h := httpHandlers.Handler{Invoker: inv, Catalog: catalog, Audit: audit}
 
 	return &App{
-		Config:  cfg,
-		Logger:  log,
-		Metrics: metrics,
+		Config:     cfg,
+		Logger:     log,
+		Metrics:    metrics,
+		closeAudit: closeAudit,
 		HTTPServer: &http.Server{
 			Addr:         cfg.Server.HTTPListen,
 			Handler:      httpRoutes.New(log, metrics, h),
@@ -65,6 +92,14 @@ func New(cfg config.Config) *App {
 }
 
 func (a *App) Run(ctx context.Context) error {
+	defer func() {
+		if a.closeAudit != nil {
+			if err := a.closeAudit(); err != nil {
+				a.Logger.Error("close audit store failed", "error", err)
+			}
+		}
+	}()
+
 	errCh := make(chan error, 2)
 	go func() {
 		a.Logger.Info("mcp admin http server starting", "listen", a.Config.Server.HTTPListen)
