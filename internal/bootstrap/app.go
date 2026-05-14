@@ -2,8 +2,8 @@ package bootstrap
 
 import (
 	"context"
+	"fmt"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -14,9 +14,10 @@ import (
 	"github.com/joey/lumen-mcp-server/internal/infrastructure/auditstore"
 	"github.com/joey/lumen-mcp-server/internal/infrastructure/gatewayclient"
 	"github.com/joey/lumen-mcp-server/internal/infrastructure/jwkscache"
+	"github.com/joey/lumen-mcp-server/internal/infrastructure/oauthlogin"
 	httpHandlers "github.com/joey/lumen-mcp-server/internal/interfaces/http/handlers"
 	httpRoutes "github.com/joey/lumen-mcp-server/internal/interfaces/http/routes"
-	"github.com/joey/lumen-mcp-server/internal/interfaces/mcp"
+	mcpServer "github.com/joey/lumen-mcp-server/internal/interfaces/mcp"
 	"github.com/joey/lumen-mcp-server/internal/platform/logging"
 	"github.com/joey/lumen-mcp-server/internal/platform/observability"
 )
@@ -26,7 +27,7 @@ type App struct {
 	Logger     *logging.Logger
 	Metrics    *observability.Metrics
 	HTTPServer *http.Server
-	MCPServer  mcp.Server
+	MCP        *mcpServer.Server
 	closeAudit func() error
 }
 
@@ -37,10 +38,11 @@ func (s staticCatalog) List(context.Context) ([]tool.Definition, error) { return
 func New(cfg config.Config) *App {
 	log := logging.New(cfg.Logging.Level, cfg.Logging.Format)
 	metrics := observability.New()
-	audit, closeAudit, err := auditstore.NewAuditStore(cfg.Audit.Backend, cfg.Audit.SQLitePath)
+	audit, closeAudit, err := auditstore.NewAuditStore(cfg.Audit.Backend, cfg.Audit.SQLitePath, cfg.Audit.PostgresURL)
 	if err != nil {
 		panic(err)
 	}
+	gateway := gatewayclient.New(cfg.Gateway.BaseURL, cfg.Gateway.AdminAPIKey)
 	inv := invoke.Service{
 		Verifier: &jwkscache.Verifier{
 			Issuer:   cfg.OAuth.Issuer,
@@ -48,7 +50,7 @@ func New(cfg config.Config) *App {
 			JWKSURL:  cfg.OAuth.JWKSURL,
 		},
 		Authorize: authorize.Service{ToolScopeMap: cfg.Auth.ToolScopeMap},
-		Gateway:   gatewayclient.New(cfg.Gateway.BaseURL, cfg.Gateway.AdminAPIKey),
+		Gateway:   gateway,
 		Audit:     audit,
 	}
 
@@ -75,6 +77,9 @@ func New(cfg config.Config) *App {
 		{Name: "list_plugins", Description: "List plugin catalog", Scope: "plugins:read"},
 		{Name: "get_stats", Description: "Get control stats", Scope: "metrics:read"},
 	}
+
+	mcpSrv := mcpServer.New(catalog, inv, cfg.Auth.StaticBearer, log.Slog())
+
 	resource := cfg.OAuth.Audience
 	if resource == "" {
 		resource = strings.TrimRight(cfg.Server.PublicBaseURL, "/") + cfg.Server.MCPEndpoint
@@ -95,32 +100,46 @@ func New(cfg config.Config) *App {
 		Logger:     log,
 		Metrics:    metrics,
 		closeAudit: closeAudit,
+		MCP:        mcpSrv,
 		HTTPServer: &http.Server{
 			Addr:         cfg.Server.HTTPListen,
-			Handler:      httpRoutes.New(log, metrics, h),
+			Handler:      httpRoutes.New(log, metrics, h, mcpSrv.StreamableHTTPHandler()),
 			ReadTimeout:  cfg.Server.ReadTimeout,
 			WriteTimeout: cfg.Server.WriteTimeout,
 		},
-		MCPServer: mcp.Server{Log: log, In: os.Stdin, Out: os.Stdout},
 	}
 }
 
-func (a *App) Run(ctx context.Context) error {
-	defer func() {
-		if a.closeAudit != nil {
-			if err := a.closeAudit(); err != nil {
-				a.Logger.Error("close audit store failed", "error", err)
-			}
-		}
-	}()
+func (a *App) RunStdio(ctx context.Context) error {
+	defer a.cleanup()
 
-	errCh := make(chan error, 2)
+	if a.MCP.StaticBearer == "" {
+		a.Logger.Info("no static bearer configured, starting OAuth login flow")
+		token, err := oauthlogin.Login(ctx, oauthlogin.Config{
+			Issuer:          a.Config.OAuth.Issuer,
+			Audience:        a.Config.OAuth.Audience,
+			Scopes:          a.Config.Auth.ScopesSupported,
+			ClientID:        a.Config.Auth.StdioClientID,
+			RegistrationURL: strings.TrimRight(a.Config.OAuth.Issuer, "/") + "/oauth/register",
+		}, a.Logger.Slog())
+		if err != nil {
+			return fmt.Errorf("oauth login failed: %w", err)
+		}
+		a.MCP.StaticBearer = "Bearer " + token.AccessToken
+		a.Logger.Info("OAuth login succeeded, stdio server ready")
+	}
+
+	a.Logger.Info("starting MCP stdio server")
+	return a.MCP.RunStdio(ctx)
+}
+
+func (a *App) Run(ctx context.Context) error {
+	defer a.cleanup()
+
+	errCh := make(chan error, 1)
 	go func() {
 		a.Logger.Info("mcp admin http server starting", "listen", a.Config.Server.HTTPListen)
 		errCh <- a.HTTPServer.ListenAndServe()
-	}()
-	go func() {
-		errCh <- a.MCPServer.Run(ctx)
 	}()
 
 	select {
@@ -135,5 +154,13 @@ func (a *App) Run(ctx context.Context) error {
 			return nil
 		}
 		return err
+	}
+}
+
+func (a *App) cleanup() {
+	if a.closeAudit != nil {
+		if err := a.closeAudit(); err != nil {
+			a.Logger.Error("close audit store failed", "error", err)
+		}
 	}
 }

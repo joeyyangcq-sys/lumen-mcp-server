@@ -45,6 +45,10 @@ func (l *Logger) Error(msg string, args ...any) {
 	l.base.Error(msg, args...)
 }
 
+func (l *Logger) Slog() *slog.Logger {
+	return l.base
+}
+
 func parseLevel(raw string) slog.Level {
 	switch strings.ToLower(strings.TrimSpace(raw)) {
 	case "debug":

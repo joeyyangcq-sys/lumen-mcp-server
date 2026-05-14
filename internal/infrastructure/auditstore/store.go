@@ -2,6 +2,7 @@ package auditstore
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/joey/lumen-mcp-server/internal/domain/audit"
@@ -36,4 +37,30 @@ func (s *MemoryStore) List(_ context.Context, limit int) ([]audit.Event, error) 
 	out := make([]audit.Event, 0, limit)
 	out = append(out, s.events[start:]...)
 	return out, nil
+}
+
+type AuditStore interface {
+	Append(context.Context, audit.Event) error
+	List(context.Context, int) ([]audit.Event, error)
+}
+
+func NewAuditStore(backend, sqlitePath, postgresURL string) (AuditStore, func() error, error) {
+	switch backend {
+	case "stdout":
+		return NewMemory(), func() error { return nil }, nil
+	case "sqlite":
+		s, err := OpenSQLite(sqlitePath)
+		if err != nil {
+			return nil, nil, fmt.Errorf("open sqlite audit store: %w", err)
+		}
+		return s, s.Close, nil
+	case "postgres":
+		s, err := OpenPostgres(postgresURL)
+		if err != nil {
+			return nil, nil, fmt.Errorf("open postgres audit store: %w", err)
+		}
+		return s, s.Close, nil
+	default:
+		return nil, nil, fmt.Errorf("unsupported audit backend: %s", backend)
+	}
 }

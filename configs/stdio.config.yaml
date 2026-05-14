@@ -1,36 +1,24 @@
 server:
   http_listen: ":9280"
-  public_base_url: http://127.0.0.1:9280
-  mcp_endpoint: /mcp
-  read_timeout: 10s
-  write_timeout: 10s
 
 logging:
   level: info
   format: json
 
 observability:
-  metrics_enabled: true
-  metrics_path: /metrics
+  metrics_enabled: false
 
 oauth:
   issuer: http://127.0.0.1:9080
-  audience: http://127.0.0.1:9280/mcp
-  jwks_url: http://127.0.0.1:9080/oauth/jwks.json
-  protected_resource_metadata_url: http://127.0.0.1:9280/.well-known/oauth-protected-resource
+  audience: lumen-mcp
+  jwks_url: http://127.0.0.1:9080/.well-known/jwks.json
 
 gateway:
   base_url: http://127.0.0.1:18080
   admin_api_key: local-dev-admin-key
 
 auth:
-  static_bearer: ""     # pre-obtained Bearer token for stdio mode; if empty, triggers OAuth login flow
-  stdio_client_id: ""  # OAuth client_id for stdio; if empty, auto-registers via DCR
-  default_challenge_scope: mcp:tools
-  scopes_supported:
-    - mcp:tools
-    - mcp:read
-    - mcp:write
+  static_bearer: ${LUMEN_MCP_BEARER_TOKEN}
   tool_scope_map:
     list_routes: mcp:read
     get_route: mcp:read
@@ -56,5 +44,3 @@ auth:
 
 audit:
   backend: stdout
-  sqlite_path: ./data/mcp-audit.db
-  postgres_url: ""  # e.g. postgres://user:pass@localhost:5432/lumen_mcp?sslmode=disable

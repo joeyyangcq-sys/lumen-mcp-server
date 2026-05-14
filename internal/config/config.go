@@ -51,11 +51,14 @@ type AuthConfig struct {
 	DefaultChallengeScope string            `yaml:"default_challenge_scope"`
 	ScopesSupported       []string          `yaml:"scopes_supported"`
 	ToolScopeMap          map[string]string `yaml:"tool_scope_map"`
+	StaticBearer          string            `yaml:"static_bearer"`
+	StdioClientID         string            `yaml:"stdio_client_id"`
 }
 
 type AuditConfig struct {
-	Backend    string `yaml:"backend"`
-	SQLitePath string `yaml:"sqlite_path"`
+	Backend     string `yaml:"backend"`
+	SQLitePath  string `yaml:"sqlite_path"`
+	PostgresURL string `yaml:"postgres_url"`
 }
 
 func (c *Config) ApplyDefaults() {
@@ -125,12 +128,15 @@ func (c Config) Validate() error {
 		}
 	}
 	switch c.Audit.Backend {
-	case "stdout", "sqlite":
+	case "stdout", "sqlite", "postgres":
 	default:
 		return fmt.Errorf("unsupported audit.backend: %q", c.Audit.Backend)
 	}
 	if c.Audit.Backend == "sqlite" && strings.TrimSpace(c.Audit.SQLitePath) == "" {
 		return errors.New("audit.sqlite_path cannot be empty when audit.backend=sqlite")
+	}
+	if c.Audit.Backend == "postgres" && strings.TrimSpace(c.Audit.PostgresURL) == "" {
+		return errors.New("audit.postgres_url cannot be empty when audit.backend=postgres")
 	}
 	return nil
 }
