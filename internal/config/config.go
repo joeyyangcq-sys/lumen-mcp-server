@@ -18,9 +18,11 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	HTTPListen   string        `yaml:"http_listen"`
-	ReadTimeout  time.Duration `yaml:"read_timeout"`
-	WriteTimeout time.Duration `yaml:"write_timeout"`
+	HTTPListen    string        `yaml:"http_listen"`
+	PublicBaseURL string        `yaml:"public_base_url"`
+	MCPEndpoint   string        `yaml:"mcp_endpoint"`
+	ReadTimeout   time.Duration `yaml:"read_timeout"`
+	WriteTimeout  time.Duration `yaml:"write_timeout"`
 }
 
 type LoggingConfig struct {
@@ -34,9 +36,10 @@ type ObservabilityConfig struct {
 }
 
 type OAuthConfig struct {
-	Issuer   string `yaml:"issuer"`
-	Audience string `yaml:"audience"`
-	JWKSURL  string `yaml:"jwks_url"`
+	Issuer                       string `yaml:"issuer"`
+	Audience                     string `yaml:"audience"`
+	JWKSURL                      string `yaml:"jwks_url"`
+	ProtectedResourceMetadataURL string `yaml:"protected_resource_metadata_url"`
 }
 
 type GatewayConfig struct {
@@ -45,7 +48,9 @@ type GatewayConfig struct {
 }
 
 type AuthConfig struct {
-	ToolScopeMap map[string]string `yaml:"tool_scope_map"`
+	DefaultChallengeScope string            `yaml:"default_challenge_scope"`
+	ScopesSupported       []string          `yaml:"scopes_supported"`
+	ToolScopeMap          map[string]string `yaml:"tool_scope_map"`
 }
 
 type AuditConfig struct {
@@ -56,6 +61,12 @@ type AuditConfig struct {
 func (c *Config) ApplyDefaults() {
 	if c.Server.HTTPListen == "" {
 		c.Server.HTTPListen = ":9280"
+	}
+	if c.Server.PublicBaseURL == "" {
+		c.Server.PublicBaseURL = "http://127.0.0.1:9280"
+	}
+	if c.Server.MCPEndpoint == "" {
+		c.Server.MCPEndpoint = "/mcp"
 	}
 	if c.Server.ReadTimeout == 0 {
 		c.Server.ReadTimeout = 10 * time.Second
@@ -77,6 +88,15 @@ func (c *Config) ApplyDefaults() {
 	}
 	if c.Audit.SQLitePath == "" {
 		c.Audit.SQLitePath = "./data/mcp-audit.db"
+	}
+	if c.OAuth.ProtectedResourceMetadataURL == "" {
+		c.OAuth.ProtectedResourceMetadataURL = strings.TrimRight(c.Server.PublicBaseURL, "/") + "/.well-known/oauth-protected-resource"
+	}
+	if c.Auth.DefaultChallengeScope == "" {
+		c.Auth.DefaultChallengeScope = "mcp:tools"
+	}
+	if len(c.Auth.ScopesSupported) == 0 {
+		c.Auth.ScopesSupported = []string{"mcp:tools", "mcp:read", "mcp:write"}
 	}
 }
 

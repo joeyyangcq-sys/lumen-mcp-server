@@ -1,5 +1,7 @@
 server:
   http_listen: ":9280"
+  public_base_url: http://127.0.0.1:9280
+  mcp_endpoint: /mcp
   read_timeout: 10s
   write_timeout: 10s
 
@@ -13,35 +15,41 @@ observability:
 
 oauth:
   issuer: http://127.0.0.1:9080
-  audience: lumen-mcp
-  jwks_url: http://127.0.0.1:9080/.well-known/jwks.json
+  audience: http://127.0.0.1:9280/mcp
+  jwks_url: http://127.0.0.1:9080/oauth/jwks.json
+  protected_resource_metadata_url: http://127.0.0.1:9280/.well-known/oauth-protected-resource
 
 gateway:
   base_url: http://127.0.0.1:18080
   admin_api_key: local-dev-admin-key
 
 auth:
+  default_challenge_scope: mcp:tools
+  scopes_supported:
+    - mcp:tools
+    - mcp:read
+    - mcp:write
   tool_scope_map:
-    list_routes: routes:read
-    get_route: routes:read
-    put_route: routes:write
-    patch_route: routes:write
-    delete_route: routes:write
-    list_services: services:read
-    put_service: services:write
-    list_upstreams: upstreams:read
-    put_upstream: upstreams:write
-    list_plugin_configs: plugins:read
-    put_plugin_config: plugins:write
-    list_global_rules: global_rules:read
-    put_global_rule: global_rules:write
-    preview_import: gateway:bundle:apply
-    apply_import: gateway:bundle:apply
-    export_bundle: routes:read
-    history_list: routes:read
-    get_schema: routes:read
-    list_plugins: plugins:read
-    get_stats: metrics:read
+    list_routes: mcp:read
+    get_route: mcp:read
+    put_route: mcp:write
+    patch_route: mcp:write
+    delete_route: mcp:write
+    list_services: mcp:read
+    put_service: mcp:write
+    list_upstreams: mcp:read
+    put_upstream: mcp:write
+    list_plugin_configs: mcp:read
+    put_plugin_config: mcp:write
+    list_global_rules: mcp:read
+    put_global_rule: mcp:write
+    preview_import: mcp:write
+    apply_import: mcp:write
+    export_bundle: mcp:read
+    history_list: mcp:read
+    get_schema: mcp:read
+    list_plugins: mcp:read
+    get_stats: mcp:read
     history_rollback: admin:dangerous
 
 audit:

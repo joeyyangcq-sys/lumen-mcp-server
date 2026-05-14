@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/joey/lumen-mcp-server/internal/application/authorize"
@@ -74,7 +75,20 @@ func New(cfg config.Config) *App {
 		{Name: "list_plugins", Description: "List plugin catalog", Scope: "plugins:read"},
 		{Name: "get_stats", Description: "Get control stats", Scope: "metrics:read"},
 	}
-	h := httpHandlers.Handler{Invoker: inv, Catalog: catalog, Audit: audit}
+	resource := cfg.OAuth.Audience
+	if resource == "" {
+		resource = strings.TrimRight(cfg.Server.PublicBaseURL, "/") + cfg.Server.MCPEndpoint
+	}
+	h := httpHandlers.Handler{
+		Invoker:               inv,
+		Catalog:               catalog,
+		Audit:                 audit,
+		Resource:              resource,
+		AuthorizationServer:   cfg.OAuth.Issuer,
+		ResourceMetadataURL:   cfg.OAuth.ProtectedResourceMetadataURL,
+		ScopesSupported:       cfg.Auth.ScopesSupported,
+		DefaultChallengeScope: cfg.Auth.DefaultChallengeScope,
+	}
 
 	return &App{
 		Config:     cfg,

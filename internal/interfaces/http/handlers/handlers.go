@@ -10,14 +10,41 @@ import (
 )
 
 type Handler struct {
-	Invoker invoke.Service
-	Catalog ports.ToolCatalog
-	Audit   ports.AuditStore
+	Invoker               invoke.Service
+	Catalog               ports.ToolCatalog
+	Audit                 ports.AuditStore
+	Resource              string
+	AuthorizationServer   string
+	ResourceMetadataURL   string
+	ScopesSupported       []string
+	DefaultChallengeScope string
 }
 
 func (h Handler) Healthz(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{"status": "ok"})
+}
+
+func (h Handler) ProtectedResourceMetadata(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"resource":                 h.Resource,
+		"authorization_servers":    []string{h.AuthorizationServer},
+		"scopes_supported":         h.scopesSupported(),
+		"bearer_methods_supported": []string{"header"},
+	})
+}
+
+func (h Handler) MCP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "POST required", nil)
+		return
+	}
+	if r.Header.Get("Authorization") == "" {
+		h.writeBearerChallenge(w)
+		return
+	}
+	writeError(w, http.StatusNotImplemented, "mcp_http_not_implemented", "streamable HTTP MCP endpoint is not implemented yet", nil)
 }
 
 func (h Handler) ListTools(w http.ResponseWriter, r *http.Request) {
@@ -83,4 +110,20 @@ func writeError(w http.ResponseWriter, status int, code, message string, details
 		"message": message,
 		"details": details,
 	})
+}
+
+func (h Handler) writeBearerChallenge(w http.ResponseWriter) {
+	value := `Bearer resource_metadata="` + h.ResourceMetadataURL + `"`
+	if h.DefaultChallengeScope != "" {
+		value += `, scope="` + h.DefaultChallengeScope + `"`
+	}
+	w.Header().Set("WWW-Authenticate", value)
+	writeError(w, http.StatusUnauthorized, "unauthorized", "bearer token required", nil)
+}
+
+func (h Handler) scopesSupported() []string {
+	if len(h.ScopesSupported) > 0 {
+		return h.ScopesSupported
+	}
+	return []string{"mcp:tools", "mcp:read", "mcp:write"}
 }

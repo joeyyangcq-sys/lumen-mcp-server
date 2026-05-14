@@ -13,6 +13,9 @@ import (
 func New(log *logging.Logger, metrics *observability.Metrics, h handlers.Handler) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", h.Healthz)
+	mux.HandleFunc("/mcp", h.MCP)
+	mux.HandleFunc("/.well-known/oauth-protected-resource", h.ProtectedResourceMetadata)
+	mux.HandleFunc("/.well-known/oauth-protected-resource/mcp", h.ProtectedResourceMetadata)
 	mux.HandleFunc("/admin/tools", h.ListTools)
 	mux.HandleFunc("/admin/audit", h.ListAudit)
 	mux.HandleFunc("/admin/tools/invoke", h.InvokeTool)
