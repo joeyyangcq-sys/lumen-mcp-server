@@ -29,6 +29,21 @@ func New(baseURL, apiKey string) Client {
 }
 
 func (c Client) InvokeTool(ctx context.Context, toolName string, args map[string]any) (map[string]any, error) {
+	if args == nil {
+		args = map[string]any{}
+	}
+
+	switch toolName {
+	case "analyze_latency":
+		return c.AnalyzeLatency(ctx, args)
+	case "tune_upstream_timeout":
+		return c.TuneUpstreamTimeout(ctx, args)
+	}
+
+	return c.invokeGatewayTool(ctx, toolName, args)
+}
+
+func (c Client) invokeGatewayTool(ctx context.Context, toolName string, args map[string]any) (map[string]any, error) {
 	reqSpec, err := buildRequest(toolName, args)
 	if err != nil {
 		return nil, err
@@ -72,6 +87,44 @@ func (c Client) InvokeTool(ctx context.Context, toolName string, args map[string
 		return nil, fmt.Errorf("gateway response is not json object: %w", err)
 	}
 	return payload, nil
+}
+
+func (c Client) doRequest(ctx context.Context, method, path string, body map[string]any, accept string) ([]byte, int, error) {
+	bodyReader := io.Reader(http.NoBody)
+	if body != nil {
+		raw, err := json.Marshal(body)
+		if err != nil {
+			return nil, 0, err
+		}
+		bodyReader = bytes.NewReader(raw)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, c.BaseURL+path, bodyReader)
+	if err != nil {
+		return nil, 0, err
+	}
+	req.Header.Set("X-API-KEY", c.APIKey)
+	if strings.TrimSpace(accept) == "" {
+		accept = "application/json"
+	}
+	req.Header.Set("Accept", accept)
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, resp.StatusCode, err
+	}
+	if resp.StatusCode >= 400 {
+		return data, resp.StatusCode, fmt.Errorf("gateway request failed: status=%d body=%s", resp.StatusCode, strings.TrimSpace(string(data)))
+	}
+	return data, resp.StatusCode, nil
 }
 
 type requestSpec struct {

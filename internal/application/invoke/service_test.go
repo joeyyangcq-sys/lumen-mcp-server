@@ -49,7 +49,10 @@ func TestInvokeTool_AuditAllowDenyAndError(t *testing.T) {
 		a := &memAudit{}
 		svc := Service{
 			Verifier:  fakeVerifier{err: errors.New("bad token")},
-			Authorize: authorize.Service{ToolScopeMap: map[string]string{"list_routes": "routes:read"}},
+			Authorize: authorize.Service{
+				ToolScopeMap:   map[string]string{"list_routes": "routes:read"},
+				RequiredScopes: []string{"mcp:tools"},
+			},
 			Gateway:   fakeGateway{resp: map[string]any{"ok": true}},
 			Audit:     a,
 		}
@@ -65,8 +68,11 @@ func TestInvokeTool_AuditAllowDenyAndError(t *testing.T) {
 	t.Run("deny on scope mismatch", func(t *testing.T) {
 		a := &memAudit{}
 		svc := Service{
-			Verifier:  fakeVerifier{claims: ports.Claims{Subject: "s", Client: "c", Scopes: []string{"routes:read"}}},
-			Authorize: authorize.Service{ToolScopeMap: map[string]string{"history_rollback": "admin:dangerous"}},
+			Verifier: fakeVerifier{claims: ports.Claims{Subject: "s", Client: "c", Scopes: []string{"mcp:tools", "routes:read"}}},
+			Authorize: authorize.Service{
+				ToolScopeMap:   map[string]string{"history_rollback": "admin:dangerous"},
+				RequiredScopes: []string{"mcp:tools"},
+			},
 			Gateway:   fakeGateway{resp: map[string]any{"ok": true}},
 			Audit:     a,
 		}
@@ -82,8 +88,11 @@ func TestInvokeTool_AuditAllowDenyAndError(t *testing.T) {
 	t.Run("error on gateway failure", func(t *testing.T) {
 		a := &memAudit{}
 		svc := Service{
-			Verifier:  fakeVerifier{claims: ports.Claims{Subject: "s", Client: "c", Scopes: []string{"routes:read"}}},
-			Authorize: authorize.Service{ToolScopeMap: map[string]string{"list_routes": "routes:read"}},
+			Verifier: fakeVerifier{claims: ports.Claims{Subject: "s", Client: "c", Scopes: []string{"mcp:tools", "routes:read"}}},
+			Authorize: authorize.Service{
+				ToolScopeMap:   map[string]string{"list_routes": "routes:read"},
+				RequiredScopes: []string{"mcp:tools"},
+			},
 			Gateway:   fakeGateway{err: errors.New("gateway down")},
 			Audit:     a,
 		}
@@ -99,8 +108,11 @@ func TestInvokeTool_AuditAllowDenyAndError(t *testing.T) {
 	t.Run("allow and audit success", func(t *testing.T) {
 		a := &memAudit{}
 		svc := Service{
-			Verifier:  fakeVerifier{claims: ports.Claims{Subject: "s", Client: "c", Scopes: []string{"routes:read"}}},
-			Authorize: authorize.Service{ToolScopeMap: map[string]string{"list_routes": "routes:read"}},
+			Verifier: fakeVerifier{claims: ports.Claims{Subject: "s", Client: "c", Scopes: []string{"mcp:tools", "routes:read"}}},
+			Authorize: authorize.Service{
+				ToolScopeMap:   map[string]string{"list_routes": "routes:read"},
+				RequiredScopes: []string{"mcp:tools"},
+			},
 			Gateway:   fakeGateway{resp: map[string]any{"ok": true}},
 			Audit:     a,
 		}

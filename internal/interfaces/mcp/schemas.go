@@ -77,6 +77,41 @@ func inputSchemaFor(toolName string) json.RawMessage {
 			"required": ["id"]
 		}`)
 
+	case "analyze_latency":
+		return json.RawMessage(`{
+			"type": "object",
+			"properties": {
+				"route_id":            {"type": "string",  "description": "Optional route ID filter"},
+				"upstream_id":         {"type": "string",  "description": "Optional upstream ID filter"},
+				"min_samples":         {"type": "integer", "description": "Ignore series with fewer samples"},
+				"quantile":            {"type": "number",  "description": "Quantile used for recommendations, e.g. 0.95"},
+				"safety_factor":       {"type": "number",  "description": "Multiplier over observed latency when recommending timeout"},
+				"include_non_2xx":     {"type": "boolean", "description": "Whether to include non-2xx status classes"},
+				"min_connect_ms":      {"type": "number",  "description": "Minimum connect timeout in milliseconds"},
+				"min_read_ms":         {"type": "number",  "description": "Minimum read/send timeout in milliseconds"},
+				"max_connect_seconds": {"type": "integer", "description": "Upper bound for connect timeout recommendation"},
+				"max_read_seconds":    {"type": "integer", "description": "Upper bound for read/send timeout recommendation"}
+			}
+		}`)
+
+	case "tune_upstream_timeout":
+		return json.RawMessage(`{
+			"type": "object",
+			"properties": {
+				"route_id":            {"type": "string",  "description": "Optional route ID filter"},
+				"upstream_id":         {"type": "string",  "description": "Optional upstream ID filter"},
+				"dry_run":             {"type": "boolean", "description": "If true, only return recommendation without update"},
+				"min_samples":         {"type": "integer", "description": "Ignore series with fewer samples"},
+				"quantile":            {"type": "number",  "description": "Quantile used for recommendations, e.g. 0.95"},
+				"safety_factor":       {"type": "number",  "description": "Multiplier over observed latency when recommending timeout"},
+				"include_non_2xx":     {"type": "boolean", "description": "Whether to include non-2xx status classes"},
+				"min_connect_ms":      {"type": "number",  "description": "Minimum connect timeout in milliseconds"},
+				"min_read_ms":         {"type": "number",  "description": "Minimum read/send timeout in milliseconds"},
+				"max_connect_seconds": {"type": "integer", "description": "Upper bound for connect timeout recommendation"},
+				"max_read_seconds":    {"type": "integer", "description": "Upper bound for read/send timeout recommendation"}
+			}
+		}`)
+
 	case "get_schema", "list_plugins", "get_stats":
 		return json.RawMessage(`{"type": "object"}`)
 

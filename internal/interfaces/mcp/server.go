@@ -16,10 +16,11 @@ type ToolInvoker interface {
 }
 
 type Server struct {
-	inner        *gomcp.Server
-	Invoker      ToolInvoker
-	Log          *slog.Logger
-	StaticBearer string
+	inner               *gomcp.Server
+	Invoker             ToolInvoker
+	Log                 *slog.Logger
+	StaticBearer        string
+	ResourceMetadataURL string
 }
 
 func New(catalog []tool.Definition, invoker ToolInvoker, staticBearer string, logger *slog.Logger) *Server {
@@ -105,12 +106,26 @@ func (s *Server) RunStdio(ctx context.Context) error {
 }
 
 func (s *Server) StreamableHTTPHandler() http.Handler {
-	return gomcp.NewStreamableHTTPHandler(
+	inner := gomcp.NewStreamableHTTPHandler(
 		func(_ *http.Request) *gomcp.Server { return s.inner },
 		&gomcp.StreamableHTTPOptions{
 			Logger: s.Log,
 		},
 	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") == "" && s.StaticBearer == "" {
+			if s.ResourceMetadataURL != "" {
+				w.Header().Set("WWW-Authenticate", `Bearer resource_metadata="`+s.ResourceMetadataURL+`"`)
+			} else {
+				w.Header().Set("WWW-Authenticate", `Bearer`)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(`{"jsonrpc":"2.0","error":{"code":-32001,"message":"unauthorized: bearer token required"}}`))
+			return
+		}
+		inner.ServeHTTP(w, r)
+	})
 }
 
 func errorResult(msg string) *gomcp.CallToolResult {

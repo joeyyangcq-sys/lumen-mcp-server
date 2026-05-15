@@ -29,30 +29,35 @@ auth:
   default_challenge_scope: mcp:tools
   scopes_supported:
     - mcp:tools
-    - mcp:read
-    - mcp:write
+    - read
+    - gateway:write
+    - oauth:write
+  required_scopes:
+    - mcp:tools
   tool_scope_map:
-    list_routes: mcp:read
-    get_route: mcp:read
-    put_route: mcp:write
-    patch_route: mcp:write
-    delete_route: mcp:write
-    list_services: mcp:read
-    put_service: mcp:write
-    list_upstreams: mcp:read
-    put_upstream: mcp:write
-    list_plugin_configs: mcp:read
-    put_plugin_config: mcp:write
-    list_global_rules: mcp:read
-    put_global_rule: mcp:write
-    preview_import: mcp:write
-    apply_import: mcp:write
-    export_bundle: mcp:read
-    history_list: mcp:read
-    get_schema: mcp:read
-    list_plugins: mcp:read
-    get_stats: mcp:read
-    history_rollback: admin:dangerous
+    list_routes: read
+    get_route: read
+    put_route: gateway:write
+    patch_route: gateway:write
+    delete_route: gateway:write
+    list_services: read
+    put_service: gateway:write
+    list_upstreams: read
+    put_upstream: gateway:write
+    list_plugin_configs: read
+    put_plugin_config: gateway:write
+    list_global_rules: read
+    put_global_rule: gateway:write
+    preview_import: gateway:write
+    apply_import: gateway:write
+    export_bundle: read
+    history_list: read
+    get_schema: read
+    list_plugins: read
+    get_stats: read
+    analyze_latency: read
+    tune_upstream_timeout: gateway:write
+    history_rollback: gateway:write
 
 audit:
   backend: stdout

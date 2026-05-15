@@ -125,5 +125,5 @@ func (h Handler) scopesSupported() []string {
 	if len(h.ScopesSupported) > 0 {
 		return h.ScopesSupported
 	}
-	return []string{"mcp:tools", "mcp:read", "mcp:write"}
+	return []string{"mcp:tools", "read", "gateway:write", "oauth:write"}
 }

@@ -50,6 +50,7 @@ type GatewayConfig struct {
 type AuthConfig struct {
 	DefaultChallengeScope string            `yaml:"default_challenge_scope"`
 	ScopesSupported       []string          `yaml:"scopes_supported"`
+	RequiredScopes        []string          `yaml:"required_scopes"`
 	ToolScopeMap          map[string]string `yaml:"tool_scope_map"`
 	StaticBearer          string            `yaml:"static_bearer"`
 	StdioClientID         string            `yaml:"stdio_client_id"`
@@ -99,7 +100,10 @@ func (c *Config) ApplyDefaults() {
 		c.Auth.DefaultChallengeScope = "mcp:tools"
 	}
 	if len(c.Auth.ScopesSupported) == 0 {
-		c.Auth.ScopesSupported = []string{"mcp:tools", "mcp:read", "mcp:write"}
+		c.Auth.ScopesSupported = []string{"mcp:tools", "read", "gateway:write", "oauth:write"}
+	}
+	if len(c.Auth.RequiredScopes) == 0 {
+		c.Auth.RequiredScopes = []string{"mcp:tools"}
 	}
 }
 
@@ -125,6 +129,11 @@ func (c Config) Validate() error {
 	for tool, scope := range c.Auth.ToolScopeMap {
 		if strings.TrimSpace(tool) == "" || strings.TrimSpace(scope) == "" {
 			return fmt.Errorf("invalid tool_scope_map entry: %q=%q", tool, scope)
+		}
+	}
+	for _, scope := range c.Auth.RequiredScopes {
+		if strings.TrimSpace(scope) == "" {
+			return errors.New("auth.required_scopes cannot contain empty scope")
 		}
 	}
 	switch c.Audit.Backend {
