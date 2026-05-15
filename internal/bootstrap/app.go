@@ -53,8 +53,8 @@ func New(cfg config.Config) *App {
 			ToolScopeMap:   cfg.Auth.ToolScopeMap,
 			RequiredScopes: cfg.Auth.RequiredScopes,
 		},
-		Gateway:   gateway,
-		Audit:     audit,
+		Gateway: gateway,
+		Audit:   audit,
 	}
 
 	catalog := staticCatalog{
@@ -99,6 +99,8 @@ func New(cfg config.Config) *App {
 		ResourceMetadataURL:   cfg.OAuth.ProtectedResourceMetadataURL,
 		ScopesSupported:       cfg.Auth.ScopesSupported,
 		DefaultChallengeScope: cfg.Auth.DefaultChallengeScope,
+		Verifier:              inv.Verifier,
+		Authorize:             inv.Authorize,
 	}
 
 	return &App{

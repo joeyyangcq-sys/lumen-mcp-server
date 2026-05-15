@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 
+	"github.com/joey/lumen-mcp-server/internal/application/authorize"
 	"github.com/joey/lumen-mcp-server/internal/application/invoke"
 	"github.com/joey/lumen-mcp-server/internal/application/ports"
 )
@@ -18,6 +20,8 @@ type Handler struct {
 	ResourceMetadataURL   string
 	ScopesSupported       []string
 	DefaultChallengeScope string
+	Verifier              ports.TokenVerifier
+	Authorize             authorize.Service
 }
 
 func (h Handler) Healthz(w http.ResponseWriter, _ *http.Request) {
@@ -48,6 +52,9 @@ func (h Handler) MCP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h Handler) ListTools(w http.ResponseWriter, r *http.Request) {
+	if _, ok := h.requireAuthorized(w, r); !ok {
+		return
+	}
 	tools, err := h.Catalog.List(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error", err.Error(), nil)
@@ -57,6 +64,9 @@ func (h Handler) ListTools(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h Handler) ListAudit(w http.ResponseWriter, r *http.Request) {
+	if _, ok := h.requireAuthorized(w, r); !ok {
+		return
+	}
 	limit := 20
 	if raw := r.URL.Query().Get("limit"); raw != "" {
 		if v, err := strconv.Atoi(raw); err == nil && v > 0 {
@@ -119,6 +129,44 @@ func (h Handler) writeBearerChallenge(w http.ResponseWriter) {
 	}
 	w.Header().Set("WWW-Authenticate", value)
 	writeError(w, http.StatusUnauthorized, "unauthorized", "bearer token required", nil)
+}
+
+func (h Handler) requireAuthorized(w http.ResponseWriter, r *http.Request) (ports.Claims, bool) {
+	bearer := strings.TrimSpace(r.Header.Get("Authorization"))
+	if bearer == "" {
+		h.writeBearerChallenge(w)
+		return ports.Claims{}, false
+	}
+	if h.Verifier == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "token verifier is not configured", nil)
+		return ports.Claims{}, false
+	}
+	claims, err := h.Verifier.VerifyBearer(r.Context(), bearer)
+	if err != nil {
+		h.writeBearerChallenge(w)
+		return ports.Claims{}, false
+	}
+
+	for _, required := range h.Authorize.RequiredScopes {
+		required = strings.TrimSpace(required)
+		if required == "" {
+			continue
+		}
+		if !hasScope(claims.Scopes, required) {
+			writeError(w, http.StatusForbidden, "forbidden", "missing required scope: "+required, nil)
+			return ports.Claims{}, false
+		}
+	}
+	return claims, true
+}
+
+func hasScope(scopes []string, required string) bool {
+	for _, scope := range scopes {
+		if strings.EqualFold(strings.TrimSpace(scope), "admin:*") || strings.EqualFold(strings.TrimSpace(scope), required) {
+			return true
+		}
+	}
+	return false
 }
 
 func (h Handler) scopesSupported() []string {
